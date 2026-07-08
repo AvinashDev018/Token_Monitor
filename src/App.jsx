@@ -1,6 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import DashboardCards from "./components/DashboardCards";
+import DailyUsageChart from "./components/DailyUsageChart";
 import "./App.css";
 
 function App() {
@@ -33,7 +34,7 @@ function App() {
 
       alert("Image analyzed successfully!");
 
-      // Refresh dashboard cards
+      // Refresh dashboard
       window.location.reload();
 
     } catch (err) {
@@ -64,8 +65,13 @@ function App() {
         </button>
       </div>
 
+      {/* Dashboard Summary Cards */}
       <DashboardCards />
 
+      {/* Daily Usage Chart */}
+      <DailyUsageChart />
+
+      {/* Gemini Response */}
       {description && (
         <div
           style={{
@@ -80,6 +86,7 @@ function App() {
           <p>{description}</p>
         </div>
       )}
+
     </div>
   );
 }

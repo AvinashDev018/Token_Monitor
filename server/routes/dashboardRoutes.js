@@ -1,8 +1,13 @@
 import express from "express";
-import { getTodayDashboard } from "../controllers/dashboardController.js";
+import {
+    getSummary,
+    getHistory,
+    getDailyUsage
+} from "../controllers/dashboardController.js";
 
 const router = express.Router();
-
-router.get("/today", getTodayDashboard);
+router.get("/history", getHistory);
+router.get("/summary", getSummary);
+router.get("/daily-usage", getDailyUsage);
 
 export default router;

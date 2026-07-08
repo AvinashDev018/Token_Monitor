@@ -39,16 +39,18 @@ for (let i = 0; i < 3; i++) {
 
     const inputTokens = usage.promptTokenCount;
     const outputTokens = usage.candidatesTokenCount;
-    const totalTokens = usage.totalTokenCount;
+    const billableTokens = inputTokens + outputTokens;
+    const apiTotalTokens = usage.totalTokenCount;
 
     // Fetch model pricing from database
     const [priceRows] = await db.execute(
-      `
+  `
       SELECT
         input_price_per_million,
         output_price_per_million
-      FROM model_pricing
-      WHERE model_name = ?
+        FROM model_pricing
+        WHERE model_name = ?
+        AND effective_from <= CURDATE()
       ORDER BY effective_from DESC
       LIMIT 1
       `,
@@ -77,34 +79,36 @@ for (let i = 0; i < 3; i++) {
     const estimatedCost = inputCost + outputCost;
 
     // Save request log
-    await db.execute(
-      `
-      INSERT INTO request_logs
-      (
-        provider,
-        model,
-        input_tokens,
-        output_tokens,
-        total_tokens,
-        estimated_cost,
-        latency_ms,
-        status,
-        image_name
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
-        "Gemini",
-        response.modelVersion,
-        inputTokens,
-        outputTokens,
-        totalTokens,
-        estimatedCost,
-        0,
-        "SUCCESS",
-        req.file.filename,
-      ]
-    );
+      await db.execute(
+          `
+          INSERT INTO request_logs
+          (
+          provider,
+          model,
+          input_tokens,
+          output_tokens,
+          billable_tokens,
+          api_total_tokens,
+          estimated_cost,
+          latency_ms,
+          status,
+          image_name
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+          "Gemini",
+          response.modelVersion,
+          inputTokens,
+          outputTokens,
+          billableTokens,
+          apiTotalTokens,
+          estimatedCost,
+          0,
+          "SUCCESS",
+          req.file.filename,
+          ]
+      );
 
     res.json({
       success: true,

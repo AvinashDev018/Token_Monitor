@@ -1,19 +1,25 @@
 import { useEffect, useState } from "react";
-import { getTodayDashboard } from "../api/dashboardApi";
+import { getDashboardSummary } from "../api/dashboardApi";
 import "./DashboardCards.css";
 
 export default function DashboardCards() {
   const [dashboard, setDashboard] = useState({
     totalRequests: 0,
-    totalInputTokens: 0,
-    totalOutputTokens: 0,
-    totalTokens: 0,
-    totalCost: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    billableTokens: 0,
+    estimatedCost: 0,
+    avgLatency: 0,
+    successRequests: 0,
+    failedRequests: 0,
   });
 
   const loadDashboard = async () => {
     try {
-      const res = await getTodayDashboard();
+      const res = await getDashboardSummary();
+
+      console.log(res.data);
+
       setDashboard(res.data.data);
     } catch (err) {
       console.log(err);
@@ -38,22 +44,37 @@ export default function DashboardCards() {
 
       <div className="card">
         <h3>Input Tokens</h3>
-        <h1>{dashboard.totalInputTokens}</h1>
+        <h1>{dashboard.inputTokens}</h1>
       </div>
 
       <div className="card">
         <h3>Output Tokens</h3>
-        <h1>{dashboard.totalOutputTokens}</h1>
+        <h1>{dashboard.outputTokens}</h1>
       </div>
 
       <div className="card">
-        <h3>Total Tokens</h3>
-        <h1>{dashboard.totalTokens}</h1>
+        <h3>Billable Tokens</h3>
+        <h1>{dashboard.billableTokens}</h1>
       </div>
 
       <div className="card">
         <h3>Estimated Cost</h3>
-        <h1>${Number(dashboard.totalCost).toFixed(6)}</h1>
+        <h1>${Number(dashboard.estimatedCost).toFixed(6)}</h1>
+      </div>
+
+      <div className="card">
+        <h3>Average Latency</h3>
+        <h1>{Number(dashboard.avgLatency).toFixed(0)} ms</h1>
+      </div>
+
+      <div className="card">
+        <h3>Success</h3>
+        <h1>{dashboard.successRequests}</h1>
+      </div>
+
+      <div className="card">
+        <h3>Failed</h3>
+        <h1>{dashboard.failedRequests}</h1>
       </div>
 
     </div>
