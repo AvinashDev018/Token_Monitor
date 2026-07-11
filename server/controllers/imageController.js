@@ -10,64 +10,65 @@ export const analyzeImage = async (req, res) => {
       });
     }
 
-    // Call Gemini
+    // Model selected by user
+    const model = req.body.model || "gemini-2.5-flash-lite";
+
     let response;
 
-for (let i = 0; i < 3; i++) {
-  try {
-    response = await analyzeImageWithGemini(
-      req.file.path,
-      req.file.mimetype
-    );
+    // Retry Gemini API (3 attempts)
+    for (let i = 0; i < 3; i++) {
+      try {
+        response = await analyzeImageWithGemini(
+          req.file.path,
+          req.file.mimetype,
+          model
+        );
 
-    break;
+        break;
+      } catch (err) {
+        console.log(`Gemini attempt ${i + 1} failed`);
 
-  } catch (err) {
+        if (i === 2) {
+          throw err;
+        }
 
-    console.log(`Gemini attempt ${i + 1} failed`);
-
-    if (i === 2) {
-      throw err;
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-  }
-}
-
-    // Get token usage
+    // Token Usage
     const usage = response.usageMetadata;
 
-    const inputTokens = usage.promptTokenCount;
-    const outputTokens = usage.candidatesTokenCount;
+    const inputTokens = usage.promptTokenCount || 0;
+    const outputTokens = usage.candidatesTokenCount || 0;
+    const apiTotalTokens = usage.totalTokenCount || 0;
     const billableTokens = inputTokens + outputTokens;
-    const apiTotalTokens = usage.totalTokenCount;
 
-    // Fetch model pricing from database
+    // Get pricing for selected model
     const [priceRows] = await db.execute(
-  `
+      `
       SELECT
         input_price_per_million,
         output_price_per_million
-        FROM model_pricing
-        WHERE model_name = ?
-        AND effective_from <= CURDATE()
+      FROM model_pricing
+      WHERE model_name = ?
+      AND effective_from <= CURDATE()
       ORDER BY effective_from DESC
       LIMIT 1
       `,
-      [response.modelVersion]
+      [model]
     );
 
     if (priceRows.length === 0) {
       return res.status(500).json({
         success: false,
-        message: `Pricing not found for model ${response.modelVersion}`,
+        message: `Pricing not found for model ${model}`,
       });
     }
 
-    
     const pricing = priceRows[0];
 
-    // Calculate cost
+    // Calculate Cost
     const inputCost =
       (inputTokens / 1000000) *
       Number(pricing.input_price_per_million);
@@ -78,42 +79,43 @@ for (let i = 0; i < 3; i++) {
 
     const estimatedCost = inputCost + outputCost;
 
-    // Save request log
-      await db.execute(
-          `
-          INSERT INTO request_logs
-          (
-          provider,
-          model,
-          input_tokens,
-          output_tokens,
-          billable_tokens,
-          api_total_tokens,
-          estimated_cost,
-          latency_ms,
-          status,
-          image_name
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-          [
-          "Gemini",
-          response.modelVersion,
-          inputTokens,
-          outputTokens,
-          billableTokens,
-          apiTotalTokens,
-          estimatedCost,
-          0,
-          "SUCCESS",
-          req.file.filename,
-          ]
-      );
+    // Save Request Log
+    await db.execute(
+      `
+      INSERT INTO request_logs
+      (
+        provider,
+        model,
+        input_tokens,
+        output_tokens,
+        billable_tokens,
+        api_total_tokens,
+        estimated_cost,
+        latency_ms,
+        status,
+        image_name
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        "Gemini",
+        model,
+        inputTokens,
+        outputTokens,
+        billableTokens,
+        apiTotalTokens,
+        estimatedCost,
+        0,
+        "SUCCESS",
+        req.file.filename,
+      ]
+    );
 
     res.json({
       success: true,
       description: response.text,
       usage,
+      model,
       estimatedCost,
     });
 
@@ -125,5 +127,29 @@ for (let i = 0; i < 3; i++) {
       message: error.message,
     });
   }
-  
+};
+export const getAvailableModels = async (req, res) => {
+  try {
+
+    const [rows] = await db.execute(`
+      SELECT model_name
+      FROM model_pricing
+      ORDER BY model_name
+    `);
+
+    res.json({
+      success: true,
+      models: rows.map((row) => row.model_name),
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+
+  }
 };

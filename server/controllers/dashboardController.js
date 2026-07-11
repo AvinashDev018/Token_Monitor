@@ -1,54 +1,73 @@
 import db from "../config/db.js";
 
+// Dashboard Summary
 export const getSummary = async (req, res) => {
   try {
-    const filter = req.query.filter || "today";
+    const { startDate, endDate, model = "ALL" } = req.query;
 
-    const model = req.query.model || "ALL";
     let conditions = [];
+    let params = [];
 
-    switch (filter) {
-      case "today":
-        conditions.push("DATE(created_at)=CURDATE()");
-        break;
-
-      case "yesterday":
-        conditions.push(
-          "DATE(created_at)=CURDATE()-INTERVAL 1 DAY"
-        );
-        break;
-
-      case "last7days":
-        conditions.push(
-          "created_at>=CURDATE()-INTERVAL 7 DAY"
-        );
-        break;
-
-      case "all":
-        break;
+    // Date Range
+    if (startDate) {
+      conditions.push("DATE(rl.created_at) >= ?");
+      params.push(startDate);
     }
 
+    if (endDate) {
+      conditions.push("DATE(rl.created_at) <= ?");
+      params.push(endDate);
+    }
+
+    // Model Filter
     if (model !== "ALL") {
-      conditions.push(`model='${model}'`);
+      conditions.push("rl.model = ?");
+      params.push(model);
     }
 
-    const [rows] = await db.execute(`
+    const whereClause =
+      conditions.length > 0
+        ? `WHERE ${conditions.join(" AND ")}`
+        : "";
+
+    const [rows] = await db.execute(
+      `
       SELECT
         COUNT(*) AS totalRequests,
-        COALESCE(SUM(input_tokens),0) AS inputTokens,
-        COALESCE(SUM(output_tokens),0) AS outputTokens,
-        COALESCE(SUM(billable_tokens),0) AS billableTokens,
-        COALESCE(SUM(estimated_cost),0) AS estimatedCost,
-        COALESCE(AVG(latency_ms),0) AS avgLatency,
-        COALESCE(SUM(CASE WHEN status='SUCCESS' THEN 1 ELSE 0 END),0) AS successRequests,
-        COALESCE(SUM(CASE WHEN status='FAILED' THEN 1 ELSE 0 END),0) AS failedRequests
-      FROM request_logs
-      WHERE ${
-        conditions.length
-          ? conditions.join(" AND ")
-          : "1=1"
-      }
-    `);
+
+        COALESCE(SUM(rl.input_tokens),0) AS inputTokens,
+
+        COALESCE(SUM(rl.output_tokens),0) AS outputTokens,
+
+        COALESCE(SUM(rl.billable_tokens),0) AS billableTokens,
+
+        COALESCE(
+          SUM(
+            (rl.input_tokens / 1000000) * mp.input_price_per_million +
+            (rl.output_tokens / 1000000) * mp.output_price_per_million
+          ),
+          0
+        ) AS estimatedCost,
+
+        COALESCE(
+          SUM(CASE WHEN rl.status='SUCCESS' THEN 1 ELSE 0 END),
+          0
+        ) AS successRequests,
+
+        COALESCE(
+          SUM(CASE WHEN rl.status='FAILED' THEN 1 ELSE 0 END),
+          0
+        ) AS failedRequests
+
+      FROM request_logs rl
+
+      LEFT JOIN model_pricing mp
+      ON rl.model = mp.model_name
+
+      ${whereClause}
+      `,
+      params
+    );
 
     res.json({
       success: true,
@@ -65,6 +84,7 @@ export const getSummary = async (req, res) => {
   }
 };
 
+// Request History
 export const getHistory = async (req, res) => {
   try {
     const [rows] = await db.execute(`
@@ -90,6 +110,8 @@ export const getHistory = async (req, res) => {
     });
 
   } catch (err) {
+    console.error(err);
+
     res.status(500).json({
       success: false,
       message: err.message,
@@ -97,6 +119,7 @@ export const getHistory = async (req, res) => {
   }
 };
 
+// Daily Usage Chart
 export const getDailyUsage = async (req, res) => {
   try {
     const [rows] = await db.execute(`
@@ -118,6 +141,56 @@ export const getDailyUsage = async (req, res) => {
     });
 
   } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+// Dynamic Models based on Date Range
+export const getModels = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    let conditions = ["model IS NOT NULL"];
+    let params = [];
+
+    if (startDate) {
+      conditions.push("DATE(created_at) >= ?");
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      conditions.push("DATE(created_at) <= ?");
+      params.push(endDate);
+    }
+
+    const whereClause = `WHERE ${conditions.join(" AND ")}`;
+
+    const [rows] = await db.execute(
+      `
+      SELECT DISTINCT model
+      FROM request_logs
+      ${whereClause}
+      ORDER BY model
+      `,
+      params
+    );
+
+    const models = rows.map((row) => row.model);
+
+    res.json({
+      success: true,
+      models,
+      defaultModel: models.length === 1 ? models[0] : "ALL",
+    });
+
+  } catch (err) {
+    console.error(err);
+
     res.status(500).json({
       success: false,
       message: err.message,

@@ -1,11 +1,19 @@
 import { useEffect, useState } from "react";
-import { getDashboardSummary } from "../api/dashboardApi";
+import {
+  getDashboardSummary,
+  getModels,
+} from "../api/dashboardApi";
 import "./DashboardCards.css";
 
 export default function DashboardCards() {
-  const [filter, setFilter] = useState("today");
+  const today = new Date().toISOString().split("T")[0];
 
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+
+  const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState("ALL");
+
   const [dashboard, setDashboard] = useState({
     totalRequests: 0,
     inputTokens: 0,
@@ -16,82 +24,140 @@ export default function DashboardCards() {
     failedRequests: 0,
   });
 
-  // USD → INR
   const USD_TO_INR = 95.45;
+
   const estimatedCostInr =
     Number(dashboard.estimatedCost) * USD_TO_INR;
 
-  const loadDashboard = async () => {
+  // -----------------------------------
+  // Load Models based on Date Range
+  // -----------------------------------
+  const loadModels = async () => {
     try {
-      const res = await getDashboardSummary(
-        filter,
-        selectedModel
-      );
+      const res = await getModels(startDate, endDate);
 
-      console.log(res.data);
+      console.log("Models:", res.data);
 
-      setDashboard(res.data.data);
+      const modelList = res.data.models || [];
+
+      setModels(modelList);
+
+      if (modelList.length === 1) {
+        setSelectedModel(modelList[0]);
+      } else {
+        setSelectedModel("ALL");
+      }
+
     } catch (err) {
-      console.log(err);
+      console.error(err);
     }
   };
 
+  // -----------------------------------
+  // Load Dashboard
+  // -----------------------------------
+  const loadDashboard = async () => {
+    try {
+      const res = await getDashboardSummary(
+        startDate,
+        endDate,
+        selectedModel
+      );
+
+      console.log("Dashboard:", res.data);
+
+      setDashboard(res.data.data);
+
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // -----------------------------------
+  // Reload Models when Date Changes
+  // -----------------------------------
   useEffect(() => {
-  loadDashboard();
+    loadModels();
+  }, [startDate, endDate]);
 
-  const interval = setInterval(loadDashboard, 5000);
+  // -----------------------------------
+  // Reload Dashboard
+  // -----------------------------------
+  useEffect(() => {
 
-  return () => clearInterval(interval);
-}, [filter, selectedModel]);
+    loadDashboard();
 
- return (
+    const interval = setInterval(() => {
+      loadDashboard();
+    }, 5000);
+
+    return () => clearInterval(interval);
+
+  }, [startDate, endDate, selectedModel]);
+
+  return (
     <>
-      {/* Toolbar */}
       <div className="dashboard-toolbar">
+
+        {/* Date Filter */}
+
+        <div className="date-filter">
+
+          <label>From:</label>
+
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+
+          <label>To:</label>
+
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+
+        </div>
+
+        {/* Model Filter */}
+
         <div className="model-filter">
+
           <label>Select Model:</label>
 
           <select
             value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
+            onChange={(e) =>
+              setSelectedModel(e.target.value)
+            }
           >
-            <option value="ALL">All Models</option>
-            <option value="gemini-2.5-flash-lite">
-              Gemini 2.5 Flash Lite
-            </option>
-            <option value="gemini-2.5-flash">
-              Gemini 2.5 Flash
-            </option>
-            <option value="gemini-2.5-pro">
-              Gemini 2.5 Pro
-            </option>
+
+            {models.length > 1 && (
+              <option value="ALL">
+                All Models
+              </option>
+            )}
+
+            {models.map((model) => (
+              <option
+                key={model}
+                value={model}
+              >
+                {model}
+              </option>
+            ))}
+
           </select>
+
         </div>
+
       </div>
 
-      {/* Dashboard Cards */}
       <div className="cards">
 
-        {/* Total Requests */}
         <div className="card">
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            style={{
-              border: "none",
-              background: "transparent",
-              fontSize: "18px",
-              fontWeight: "bold",
-              cursor: "pointer",
-              marginBottom: "10px",
-            }}
-          >
-            <option value="today">Today</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="last7days">Last 7 Days</option>
-            <option value="all">All Time</option>
-          </select>
-
           <h3>Total Requests</h3>
           <h1>{dashboard.totalRequests}</h1>
         </div>

@@ -8,7 +8,11 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-export async function analyzeImageWithGemini(filePath, mimeType) {
+export async function analyzeImageWithGemini(
+  filePath,
+  mimeType,
+  model = "gemini-2.5-flash-lite"
+) {
   const fileBytes = fs.readFileSync(filePath);
 
   // Different prompt for Image and PDF
@@ -16,24 +20,7 @@ export async function analyzeImageWithGemini(filePath, mimeType) {
 
   if (mimeType.startsWith("image/")) {
     prompt = `
-Analyze this image in extreme detail.
-
-Explain:
-
-- Every object
-- Every person's appearance
-- Background
-- Lighting
-- Camera angle
-- Colors
-- Emotions
-- Activities
-- Estimated location
-- Estimated time
-- Visible text
-- Interesting observations
-
-Finally provide a detailed summary.
+Analyze this image thoroughly.
 `;
   } else if (mimeType === "application/pdf") {
     prompt = `
@@ -60,8 +47,9 @@ Conclusion
     throw new Error("Unsupported file type");
   }
 
+  // Use the model selected by the user
   const result = await ai.models.generateContent({
-    model: "gemini-2.5-flash-lite",
+    model,
     contents: [
       {
         inlineData: {
@@ -86,6 +74,6 @@ Conclusion
   return {
     text,
     usageMetadata: result.usageMetadata,
-    modelVersion: result.modelVersion,
+    modelVersion: model,
   };
 }

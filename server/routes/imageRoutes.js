@@ -1,9 +1,24 @@
 import express from "express";
 import upload from "../middleware/upload.js";
-import { analyzeImage } from "../controllers/imageController.js";
+
+import {
+  analyzeImage,
+  getAvailableModels,
+} from "../controllers/imageController.js";
 
 const router = express.Router();
 
-router.post("/upload", upload.single("image"), analyzeImage);
+// Upload & Analyze Image
+router.post(
+  "/upload",
+  upload.single("image"),
+  analyzeImage
+);
+
+// Get all available AI models
+router.get(
+  "/models",
+  getAvailableModels
+);
 
 export default router;
