@@ -1,76 +1,43 @@
 import { useEffect, useState } from "react";
 import {
   getDashboardSummary,
-  getModels,
   getDetails,
 } from "../api/dashboardApi";
 
 import UserUsageModal from "./UserUsageModal";
 import "./DashboardCards.css";
 
-export default function DashboardCards() {
-  const today = new Date().toISOString().split("T")[0];
-
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
-
-  const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState("ALL");
-
+export default function DashboardCards({
+  startDate,
+  endDate,
+  model,
+}) {
   const [dashboard, setDashboard] = useState({
-  totalRequests: 0,
-  inputTokens: 0,
-  outputTokens: 0,
-  billableTokens: 0,
-  estimatedCost: 0,
-  averageLatency: 0,
-  successRequests: 0,
-  failedRequests: 0,
-});
+    totalRequests: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    billableTokens: 0,
+    estimatedCost: 0,
+    averageLatency: 0,
+    successRequests: 0,
+    failedRequests: 0,
+  });
 
-  // Modal State
   const [openModal, setOpenModal] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
   const [users, setUsers] = useState([]);
 
-  // Cost already comes from backend in INR
   const estimatedCost = Number(dashboard.estimatedCost || 0);
-
-  // -----------------------
-  // Load Models
-  // -----------------------
-
-  const loadModels = async () => {
-    try {
-      const res = await getModels(startDate, endDate);
-
-      const modelList = res.data.models || [];
-
-      setModels(modelList);
-
-      if (
-        !modelList.includes(selectedModel) &&
-        selectedModel !== "ALL"
-      ) {
-        setSelectedModel(
-          res.data.defaultModel || "ALL"
-        );
-      }
-    } catch (err) {
-      console.error("Load Models Error:", err);
-    }
-  };
 
   // -----------------------
   // Load Dashboard
   // -----------------------
-
   const loadDashboard = async () => {
     try {
       const res = await getDashboardSummary(
         startDate,
         endDate,
-        selectedModel
+        model
       );
 
       console.log("Dashboard:", res.data);
@@ -82,6 +49,7 @@ export default function DashboardCards() {
           outputTokens: 0,
           billableTokens: 0,
           estimatedCost: 0,
+          averageLatency: 0,
           successRequests: 0,
           failedRequests: 0,
         }
@@ -92,16 +60,15 @@ export default function DashboardCards() {
   };
 
   // -----------------------
-  // Open Modal
+  // Open Details Modal
   // -----------------------
-
   const openDetails = async (type, title) => {
     try {
       const res = await getDetails(
         type,
         startDate,
         endDate,
-        selectedModel
+        model
       );
 
       console.log("Details:", res.data);
@@ -115,25 +82,8 @@ export default function DashboardCards() {
   };
 
   // -----------------------
-  // Initial Load
-  // -----------------------
-
-  useEffect(() => {
-    loadModels();
-  }, []);
-
-  // -----------------------
-  // Reload Models
-  // -----------------------
-
-  useEffect(() => {
-    loadModels();
-  }, [startDate, endDate]);
-
-  // -----------------------
   // Reload Dashboard
   // -----------------------
-
   useEffect(() => {
     loadDashboard();
 
@@ -143,64 +93,10 @@ export default function DashboardCards() {
 
     return () => clearInterval(interval);
 
-  }, [startDate, endDate, selectedModel]);
+  }, [startDate, endDate, model]);
 
   return (
     <>
-      <div className="dashboard-toolbar">
-
-        <div className="date-filter">
-
-          <label>From:</label>
-
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-
-          <label>To:</label>
-
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-
-        </div>
-
-        <div className="model-filter">
-
-          <label>AI Model</label>
-
-          <select
-            value={selectedModel}
-            onChange={(e) =>
-              setSelectedModel(e.target.value)
-            }
-          >
-
-            {models.length > 1 && (
-              <option value="ALL">
-                All Models
-              </option>
-            )}
-
-            {models.map((model) => (
-              <option
-                key={model}
-                value={model}
-              >
-                {model}
-              </option>
-            ))}
-
-          </select>
-
-        </div>
-
-      </div>
-
       <div className="cards">
 
         <div
@@ -226,7 +122,7 @@ export default function DashboardCards() {
           }
         >
           <h3>Input Tokens</h3>
-          <h1>{dashboard.inputTokens}</h1>
+          <h1>{Number(dashboard.inputTokens).toLocaleString()}</h1>
         </div>
 
         <div
@@ -239,7 +135,7 @@ export default function DashboardCards() {
           }
         >
           <h3>Output Tokens</h3>
-          <h1>{dashboard.outputTokens}</h1>
+          <h1>{Number(dashboard.outputTokens).toLocaleString()}</h1>
         </div>
 
         <div
@@ -252,7 +148,7 @@ export default function DashboardCards() {
           }
         >
           <h3>Total Tokens</h3>
-          <h1>{dashboard.billableTokens}</h1>
+          <h1>{Number(dashboard.billableTokens).toLocaleString()}</h1>
         </div>
 
         <div
@@ -265,30 +161,44 @@ export default function DashboardCards() {
           }
         >
           <h3>Estimated Cost (INR)</h3>
-          <h1>
-            ₹{estimatedCost.toFixed(6)}
-          </h1>
+          <h1>₹{estimatedCost.toFixed(6)}</h1>
         </div>
 
         <div
-  className="card"
-  onClick={() =>
-    openDetails(
-      "latency",
-      "Latency"
-    )
-  }
->
-  <h3>Avg Latency</h3>
-  <h1>{Math.round(dashboard.averageLatency)} ms</h1>
-</div>
+          className="card"
+          onClick={() =>
+            openDetails(
+              "latency",
+              "Average Latency"
+            )
+          }
+        >
+          <h3>Avg Latency</h3>
+          <h1>{Math.round(dashboard.averageLatency)} ms</h1>
+        </div>
 
-        <div className="card">
+        <div
+          className="card"
+          onClick={() =>
+            openDetails(
+              "success",
+              "Successful Requests"
+            )
+          }
+        >
           <h3>Success</h3>
           <h1>{dashboard.successRequests}</h1>
         </div>
 
-        <div className="card">
+        <div
+          className="card"
+          onClick={() =>
+            openDetails(
+              "failed",
+              "Failed Requests"
+            )
+          }
+        >
           <h3>Failed</h3>
           <h1>{dashboard.failedRequests}</h1>
         </div>

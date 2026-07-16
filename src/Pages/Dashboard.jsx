@@ -1,130 +1,99 @@
 import { useEffect, useState } from "react";
-// import axios from "axios";
+import axios from "axios";
 
 import DashboardCards from "../components/DashboardCards";
 import DailyUsageChart from "../components/DailyUsageChart";
-// import ImageAnalysis from "../components/ImageAnalysis";
 
 import "../App.css";
 
-function Dashboard() {
-  const [image, setImage] = useState(null);
-  const [description, setDescription] = useState("");
+export default function Dashboard() {
+  // ----------------------------
+  // Default Date
+  // ----------------------------
+  const today = new Date().toISOString().split("T")[0];
 
-  // AI Models
+  // ----------------------------
+  // Filters
+  // ----------------------------
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+
   const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState("");
+  const [selectedModel, setSelectedModel] = useState("ALL");
 
-  // -----------------------------
-  // Load Available Models
-  // -----------------------------
+  // ----------------------------
+  // Load Models
+  // ----------------------------
   useEffect(() => {
     loadModels();
-  }, []);
+  }, [startDate, endDate]);
 
   const loadModels = async () => {
     try {
       const res = await axios.get(
-        "http://localhost:5000/api/image/models"
+        "http://localhost:5000/api/dashboard/models",
+        {
+          params: {
+            startDate,
+            endDate,
+          },
+        }
       );
 
-      setModels(res.data.models || []);
+      const modelList = res.data.models || [];
 
-      if (res.data.models.length > 0) {
-        setSelectedModel(res.data.models[0]);
+      // Only one model exists
+      if (modelList.length === 1) {
+        setModels(modelList);
+
+        if (selectedModel !== modelList[0]) {
+          setSelectedModel(modelList[0]);
+        }
+      } else {
+        setModels(["ALL", ...modelList]);
+
+        if (
+          selectedModel !== "ALL" &&
+          !modelList.includes(selectedModel)
+        ) {
+          setSelectedModel("ALL");
+        }
       }
     } catch (err) {
       console.log(err);
     }
   };
 
-  // -----------------------------
-  // Upload Image
-  // -----------------------------
-  const uploadImage = async () => {
-    if (!image) {
-      alert("Please select an image");
-      return;
-    }
-
-    if (!selectedModel) {
-      alert("Please select a model");
-      return;
-    }
-
-    const token = localStorage.getItem("token");
-
-    const formData = new FormData();
-
-    formData.append("image", image);
-    formData.append("model", selectedModel);
-
-    try {
-      const res = await axios.post(
-        "http://localhost:5000/api/image/upload",
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
-
-      setDescription(res.data.description);
-
-      alert("Image analyzed successfully!");
-    } catch (err) {
-      console.log(err);
-
-      alert(err.response?.data?.message || err.message);
-    }
-  };
-
-  // -----------------------------
-  // Logout
-  // -----------------------------
-  const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-
-    window.location.href = "/";
-  };
-
   return (
     <div className="container">
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <h1>AI Token Monitor</h1>
+      <h1>AI Token Monitor</h1>
 
-        {/* <button onClick={logout}>
-          Logout
-        </button> */}
-      </div>
+      {/* Toolbar */}
 
-      {/* Upload */}
+      <div className="dashboard-toolbar">
 
-      {/* <div className="upload-section">
+        <label>From</label>
 
         <input
-          type="file"
-          accept="image/*,.pdf"
-          onChange={(e) => setImage(e.target.files[0])}
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
         />
 
-        <div className="model-select">
+        <label>To</label>
 
-          <label>
-            <b>AI Model</b>
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+        />
+
+        <div style={{ marginLeft: "auto" }}>
+
+          <label style={{ marginRight: 10 }}>
+            AI Model
           </label>
-
-          <br />
 
           <select
             value={selectedModel}
@@ -132,34 +101,44 @@ function Dashboard() {
               setSelectedModel(e.target.value)
             }
           >
-            {models.map((model) => (
-              <option
-                key={model}
-                value={model}
-              >
-                {model}
+            {models.length > 1 && (
+              <option value="ALL">
+                All Models
               </option>
+            )}
+
+            {models.map((model) => (
+              model !== "ALL" && (
+                <option
+                  key={model}
+                  value={model}
+                >
+                  {model}
+                </option>
+              )
             ))}
           </select>
 
         </div>
 
-        <br />
+      </div>
 
-        <button onClick={uploadImage}>
-          Analyze Image
-        </button>
+      {/* Dashboard Cards */}
 
-      </div> */}
+      <DashboardCards
+        startDate={startDate}
+        endDate={endDate}
+        model={selectedModel}
+      />
 
-      <DashboardCards />
+      {/* Daily Usage Chart */}
 
-      <DailyUsageChart />
-
-      {/* <ImageAnalysis description={description} /> */}
+      <DailyUsageChart
+        startDate={startDate}
+        endDate={endDate}
+        model={selectedModel}
+      />
 
     </div>
   );
 }
-
-export default Dashboard;

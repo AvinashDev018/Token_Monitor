@@ -2,32 +2,59 @@ import axios from "axios";
 
 const API = "http://localhost:5000/api/dashboard";
 
+// Common query parameters
+const buildParams = (
+  startDate,
+  endDate,
+  model = "ALL"
+) => ({
+  startDate,
+  endDate,
+  model,
+});
+
+// ======================================
 // Dashboard Summary
+// ======================================
 export const getDashboardSummary = (
   startDate,
   endDate,
   model = "ALL"
 ) => {
   return axios.get(`${API}/summary`, {
-    params: {
-      startDate,
-      endDate,
-      model,
-    },
+    params: buildParams(startDate, endDate, model),
   });
 };
 
+// ======================================
 // Daily Usage Chart
-export const getDailyUsage = () => {
-  return axios.get(`${API}/daily`);
+// ======================================
+export const getDailyUsage = (
+  startDate,
+  endDate,
+  model = "ALL"
+) => {
+  return axios.get(`${API}/daily`, {
+    params: buildParams(startDate, endDate, model),
+  });
 };
 
+// ======================================
 // Request History
-export const getHistory = () => {
-  return axios.get(`${API}/history`);
+// ======================================
+export const getHistory = (
+  startDate,
+  endDate,
+  model = "ALL"
+) => {
+  return axios.get(`${API}/history`, {
+    params: buildParams(startDate, endDate, model),
+  });
 };
 
-// Dynamic Models (based on selected date range)
+// ======================================
+// Available Models
+// ======================================
 export const getModels = (
   startDate,
   endDate
@@ -40,7 +67,9 @@ export const getModels = (
   });
 };
 
-// Dashboard Card Details
+// ======================================
+// Dashboard Details
+// ======================================
 export const getDetails = (
   type,
   startDate,
@@ -50,9 +79,7 @@ export const getDetails = (
   return axios.get(`${API}/details`, {
     params: {
       type,
-      startDate,
-      endDate,
-      model,
+      ...buildParams(startDate, endDate, model),
     },
   });
 };
