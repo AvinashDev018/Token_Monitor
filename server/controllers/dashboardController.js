@@ -311,74 +311,83 @@ message:err.message
 // ===========================================
 
 
-export const getDetails = async(req,res)=>{
+export const getDetails = async (req, res) => {
 
-try{
+  try {
 
+    const {
+      startDate,
+      endDate,
+      model = "ALL"
+    } = req.query;
 
-const [rows]=await db.execute(
-`
+    let conditions = [];
+    let params = [];
 
-SELECT
+    if (startDate) {
+      conditions.push("DATE(created_at) >= ?");
+      params.push(startDate);
+    }
 
-id,
+    if (endDate) {
+      conditions.push("DATE(created_at) <= ?");
+      params.push(endDate);
+    }
 
-user_name AS name,
+    if (model !== "ALL") {
+      conditions.push("model = ?");
+      params.push(model);
+    }
 
-user_email AS email,
+    const where =
+      conditions.length > 0
+        ? `WHERE ${conditions.join(" AND ")}`
+        : "";
 
-provider,
+    const [rows] = await db.execute(
+      `
+      SELECT
 
-model,
+        id,
+        user_name AS name,
+        user_email AS email,
+        provider,
+        model,
 
-input_tokens,
+        input_tokens,
+        output_tokens,
+        billable_tokens,
+        api_total_tokens AS total_tokens,
 
-output_tokens,
+        estimated_cost,
+        latency_ms,
+        status,
+        created_at
 
-billable_tokens,
+      FROM request_logs
 
-api_total_tokens AS total_tokens,
+      ${where}
 
-estimated_cost,
+      ORDER BY created_at DESC
+      `,
+      params
+    );
 
-latency_ms,
+    res.json({
+      success: true,
+      data: rows,
+    });
 
-status,
+  } catch (err) {
 
-created_at
+    console.error(err);
 
-FROM request_logs
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
 
-ORDER BY created_at DESC
-
-`
-);
-
-
-res.json({
-
-success:true,
-
-data:rows
-
-});
-
-
-}catch(err){
-
-console.error(err);
-
-
-res.status(500).json({
-
-success:false,
-
-message:err.message
-
-});
-
-
-}
+  }
 
 };
 
