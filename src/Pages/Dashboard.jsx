@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-import DashboardCards from "../components/DashboardCards";
-import DailyUsageChart from "../components/DailyUsageChart";
+import DashboardCards from "../Components/DashboardCards";
+import DailyUsageChart from "../Components/DailyUsageChart";
 
 import "../App.css";
 
