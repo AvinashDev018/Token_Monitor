@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import db from "./config/db.js";
-import imageRoutes from "./routes/ImageRoutes.js";
+import imageRoutes from "./routes/imageRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import sdkRoutes from "./routes/sdkRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -34,7 +34,5 @@ app.get("/", (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-
-    console.log(`Server running on http://localhost:${PORT}`);
-
+    console.log(`🚀 Server running on port ${PORT}`);
 });
