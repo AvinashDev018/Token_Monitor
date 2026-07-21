@@ -6,6 +6,8 @@ import DailyUsageChart from "../Components/DailyUsageChart";
 
 import "../App.css";
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 export default function Dashboard() {
   // ----------------------------
   // Default Date
@@ -31,7 +33,7 @@ export default function Dashboard() {
   const loadModels = async () => {
     try {
       const res = await axios.get(
-        "http://localhost:5000/api/dashboard/models",
+        `${API_URL}/api/dashboard/models`,
         {
           params: {
             startDate,
@@ -42,7 +44,6 @@ export default function Dashboard() {
 
       const modelList = res.data.models || [];
 
-      // Only one model exists
       if (modelList.length === 1) {
         setModels(modelList);
 
@@ -60,7 +61,7 @@ export default function Dashboard() {
         }
       }
     } catch (err) {
-      console.log(err);
+      console.error("Failed to load models:", err);
     }
   };
 
@@ -70,7 +71,6 @@ export default function Dashboard() {
       <h1>AI Token Monitor</h1>
 
       {/* Toolbar */}
-
       <div className="dashboard-toolbar">
 
         <label>From</label>
@@ -97,9 +97,7 @@ export default function Dashboard() {
 
           <select
             value={selectedModel}
-            onChange={(e) =>
-              setSelectedModel(e.target.value)
-            }
+            onChange={(e) => setSelectedModel(e.target.value)}
           >
             {models.length > 1 && (
               <option value="ALL">
@@ -107,16 +105,17 @@ export default function Dashboard() {
               </option>
             )}
 
-            {models.map((model) => (
-              model !== "ALL" && (
-                <option
-                  key={model}
-                  value={model}
-                >
-                  {model}
-                </option>
-              )
-            ))}
+            {models.map(
+              (model) =>
+                model !== "ALL" && (
+                  <option
+                    key={model}
+                    value={model}
+                  >
+                    {model}
+                  </option>
+                )
+            )}
           </select>
 
         </div>
@@ -124,7 +123,6 @@ export default function Dashboard() {
       </div>
 
       {/* Dashboard Cards */}
-
       <DashboardCards
         startDate={startDate}
         endDate={endDate}
@@ -132,7 +130,6 @@ export default function Dashboard() {
       />
 
       {/* Daily Usage Chart */}
-
       <DailyUsageChart
         startDate={startDate}
         endDate={endDate}
