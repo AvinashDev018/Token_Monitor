@@ -1,6 +1,6 @@
 import express from "express";
 import { saveSdkLog } from "../controllers/sdkController.js";
-import authMiddleware from "../middleware/authMiddleware.js";
+import authMiddleware from "../middleware/authmiddleware.js";
 
 const router = express.Router();
 

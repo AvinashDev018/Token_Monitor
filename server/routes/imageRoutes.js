@@ -1,7 +1,7 @@
 import express from "express";
 
 import upload from "../middleware/upload.js";
-import authMiddleware from "../middleware/authMiddleware.js";
+import authMiddleware from "../middleware/authmiddleware.js";
 import verifySdk from "../middleware/verifySdk.js";
 
 import {
