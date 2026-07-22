@@ -18,10 +18,20 @@ export const saveSdkLog = async (req, res) => {
 } = req.body;
 
 // Logged-in user from JWT
-const userId = req.user?.id || null;
-const userName = req.user?.name || null;
-const userEmail = req.user?.email || null;
+const userId = application.owner_id;
 
+const [users] = await db.execute(
+  `
+  SELECT name, email
+  FROM users
+  WHERE id = ?
+  LIMIT 1
+  `,
+  [userId]
+);
+
+const userName = users.length ? users[0].name : null;
+const userEmail = users.length ? users[0].email : null;
 console.log("Authenticated User:", {
   userId,
   userName,
