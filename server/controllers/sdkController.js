@@ -5,38 +5,29 @@ export const saveSdkLog = async (req, res) => {
   console.log("========== SDK LOG ==========");
   console.log("JWT User:", req.user);
   console.log("SDK Key:", req.headers["x-sdk-key"]);
+  console.log("Headers:", req.headers);
+  console.log("Body:", req.body);
+
   try {
-   const {
-  provider,
-  model,
-  usage,
-  latency,
-  status,
-  prompt = null,
-  imageName = null,
-  errorMessage = null,
-} = req.body;
 
-// Logged-in user from JWT
-const userId = application.owner_id;
+    // Validate request body
+    if (!req.body) {
+      return res.status(400).json({
+        success: false,
+        message: "Request body is missing",
+      });
+    }
 
-const [users] = await db.execute(
-  `
-  SELECT name, email
-  FROM users
-  WHERE id = ?
-  LIMIT 1
-  `,
-  [userId]
-);
-
-const userName = users.length ? users[0].name : null;
-const userEmail = users.length ? users[0].email : null;
-console.log("Authenticated User:", {
-  userId,
-  userName,
-  userEmail,
-});
+    const {
+      provider,
+      model,
+      usage = {},
+      latency,
+      status,
+      prompt = null,
+      imageName = null,
+      errorMessage = null,
+    } = req.body;
 
     // SDK Headers
     const sdkKey = req.headers["x-sdk-key"];
@@ -69,6 +60,28 @@ console.log("Authenticated User:", {
     }
 
     const application = applications[0];
+
+    // Logged-in user from Application Owner
+    const userId = application.owner_id;
+
+    const [users] = await db.execute(
+      `
+      SELECT name, email
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [userId]
+    );
+
+    const userName = users.length ? users[0].name : null;
+    const userEmail = users.length ? users[0].email : null;
+
+    console.log("Authenticated User:", {
+      userId,
+      userName,
+      userEmail,
+    });
 
     // Token Usage
     const inputTokens = usage?.promptTokenCount || 0;
@@ -109,111 +122,93 @@ console.log("Authenticated User:", {
         ((inputCost + outputCost) * USD_TO_INR).toFixed(6)
       );
     }
-console.log("req.user =", req.user);
-    // Save Request Log
 
-console.log("========== INSERT VALUES ==========");
+    console.log("req.user =", req.user);
 
-console.log([
-  userId,
-  userName,
-  userEmail,
-  application.id,
-  provider,
-  model
-]);
+    console.log("========== INSERT VALUES ==========");
+    console.log([
+      userId,
+      userName,
+      userEmail,
+      application.id,
+      provider,
+      model,
+    ]);
 
     await db.execute(
-`
-INSERT INTO request_logs
-(
-  user_id,
-  user_name,
-  user_email,
+      `
+      INSERT INTO request_logs
+      (
+        user_id,
+        user_name,
+        user_email,
+        application_id,
+        provider,
+        model,
+        prompt,
+        image_name,
+        input_tokens,
+        output_tokens,
+        billable_tokens,
+        api_total_tokens,
+        estimated_cost,
+        latency_ms,
+        status,
+        error_message,
+        sdk_key,
+        sdk_version,
+        environment
+      )
+      VALUES
+      (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `,
+      [
+        userId,
+        userName,
+        userEmail,
+        application.id,
+        provider,
+        model,
+        prompt,
+        imageName,
+        inputTokens,
+        outputTokens,
+        billableTokens,
+        apiTotalTokens,
+        estimatedCost,
+        latency,
+        status,
+        errorMessage,
+        sdkKey,
+        sdkVersion,
+        environment,
+      ]
+    );
 
-  application_id,
+    const [lastRow] = await db.execute(`
+      SELECT
+        id,
+        user_id,
+        user_name,
+        user_email,
+        application_id
+      FROM request_logs
+      ORDER BY id DESC
+      LIMIT 1
+    `);
 
-  provider,
-  model,
-  prompt,
-  image_name,
+    console.log("LAST INSERT:");
+    console.table(lastRow);
 
-  input_tokens,
-  output_tokens,
-  billable_tokens,
-  api_total_tokens,
-
-  estimated_cost,
-
-  latency_ms,
-
-  status,
-
-  error_message,
-
-  sdk_key,
-  sdk_version,
-  environment
-)
-
-VALUES
-(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-
-`,
-[
-  userId,
-  userName,
-  userEmail,
-
-  application.id,
-
-  provider,
-  model,
-  prompt,
-  imageName,
-
-  inputTokens,
-  outputTokens,
-  billableTokens,
-  apiTotalTokens,
-
-  estimatedCost,
-
-  latency,
-
-  status,
-
-  errorMessage,
-
-  sdkKey,
-  sdkVersion,
-  environment
-]
-);
-const [lastRow] = await db.execute(`
-SELECT
-id,
-user_id,
-user_name,
-user_email,
-application_id
-FROM request_logs
-ORDER BY id DESC
-LIMIT 1
-`);
-
-console.log("LAST INSERT:");
-console.table(lastRow);
-
-    res.json({
+    return res.json({
       success: true,
       message: "Telemetry saved successfully",
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("SDK LOG ERROR:", err);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: err.message,
     });
