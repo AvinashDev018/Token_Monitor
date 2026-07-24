@@ -1,5 +1,4 @@
 import db from "../config/db.js";
-import logger from "../utils/logger.js"; // <-- add this if you use logger
 import { getUsdToInrRate } from "../services/exchangeRateService.js";
 
 export const saveSdkLog = async (req, res) => {
@@ -78,7 +77,7 @@ export const saveSdkLog = async (req, res) => {
       userId = endUserId;
     }
 
-    logger.info("Telemetry Request User", {
+    console.log("Telemetry Request User", {
       requestUserType,
       applicationId: application.id,
       userId,
