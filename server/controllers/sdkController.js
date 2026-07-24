@@ -1,4 +1,5 @@
 import db from "../config/db.js";
+import logger from "../utils/logger.js"; // <-- add this if you use logger
 import { getUsdToInrRate } from "../services/exchangeRateService.js";
 
 export const saveSdkLog = async (req, res) => {
@@ -9,8 +10,6 @@ export const saveSdkLog = async (req, res) => {
   console.log("Body:", req.body);
 
   try {
-
-    // Validate request body
     if (!req.body) {
       return res.status(400).json({
         success: false,
@@ -27,9 +26,10 @@ export const saveSdkLog = async (req, res) => {
       prompt = null,
       imageName = null,
       errorMessage = null,
+      traceId = null,
+      endUserId = null,
     } = req.body;
 
-    // SDK Headers
     const sdkKey = req.headers["x-sdk-key"];
     const sdkVersion = req.headers["x-sdk-version"];
     const environment = req.headers["x-environment"];
@@ -41,7 +41,9 @@ export const saveSdkLog = async (req, res) => {
       });
     }
 
-    // Find Application using SDK Key
+    //----------------------------------------------------
+    // Find Application
+    //----------------------------------------------------
     const [applications] = await db.execute(
       `
       SELECT id, owner_id
@@ -52,7 +54,7 @@ export const saveSdkLog = async (req, res) => {
       [sdkKey]
     );
 
-    if (applications.length === 0) {
+    if (!applications.length) {
       return res.status(404).json({
         success: false,
         message: "Invalid SDK Key",
@@ -61,12 +63,31 @@ export const saveSdkLog = async (req, res) => {
 
     const application = applications[0];
 
-    // Logged-in user from Application Owner
-    const userId = application.owner_id;
+    //----------------------------------------------------
+    // Determine request owner
+    //----------------------------------------------------
+    let userId = application.owner_id;
+    let userName = null;
+    let userEmail = null;
+
+    const requestUserType = endUserId
+      ? "END_USER"
+      : "APPLICATION_OWNER";
+
+    if (endUserId) {
+      userId = endUserId;
+    }
+
+    logger.info("Telemetry Request User", {
+      requestUserType,
+      applicationId: application.id,
+      userId,
+      traceId,
+    });
 
     const [users] = await db.execute(
       `
-      SELECT name, email
+      SELECT id, name, email
       FROM users
       WHERE id = ?
       LIMIT 1
@@ -74,22 +95,23 @@ export const saveSdkLog = async (req, res) => {
       [userId]
     );
 
-    const userName = users.length ? users[0].name : null;
-    const userEmail = users.length ? users[0].email : null;
+    if (users.length) {
+      userId = users[0].id;
+      userName = users[0].name;
+      userEmail = users[0].email;
+    }
 
-    console.log("Authenticated User:", {
-      userId,
-      userName,
-      userEmail,
-    });
-
+    //----------------------------------------------------
     // Token Usage
+    //----------------------------------------------------
     const inputTokens = usage?.promptTokenCount || 0;
     const outputTokens = usage?.candidatesTokenCount || 0;
     const apiTotalTokens = usage?.totalTokenCount || 0;
     const billableTokens = inputTokens + outputTokens;
 
+    //----------------------------------------------------
     // Pricing
+    //----------------------------------------------------
     const [prices] = await db.execute(
       `
       SELECT
@@ -105,36 +127,25 @@ export const saveSdkLog = async (req, res) => {
 
     let estimatedCost = 0;
 
-    if (prices.length > 0) {
-      const price = prices[0];
-
+    if (prices.length) {
       const inputCost =
-        (inputTokens / 1000000) *
-        Number(price.input_price_per_million);
+        (inputTokens / 1_000_000) *
+        Number(prices[0].input_price_per_million);
 
       const outputCost =
-        (outputTokens / 1000000) *
-        Number(price.output_price_per_million);
+        (outputTokens / 1_000_000) *
+        Number(prices[0].output_price_per_million);
 
-      const USD_TO_INR = await getUsdToInrRate();
+      const usdToInr = await getUsdToInrRate();
 
       estimatedCost = Number(
-        ((inputCost + outputCost) * USD_TO_INR).toFixed(6)
+        ((inputCost + outputCost) * usdToInr).toFixed(6)
       );
     }
 
-    console.log("req.user =", req.user);
-
-    console.log("========== INSERT VALUES ==========");
-    console.log([
-      userId,
-      userName,
-      userEmail,
-      application.id,
-      provider,
-      model,
-    ]);
-
+    //----------------------------------------------------
+    // Insert
+    //----------------------------------------------------
     await db.execute(
       `
       INSERT INTO request_logs
@@ -157,10 +168,11 @@ export const saveSdkLog = async (req, res) => {
         error_message,
         sdk_key,
         sdk_version,
-        environment
+        environment,
+        trace_id
       )
       VALUES
-      (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `,
       [
         userId,
@@ -182,6 +194,7 @@ export const saveSdkLog = async (req, res) => {
         sdkKey,
         sdkVersion,
         environment,
+        traceId,
       ]
     );
 
@@ -191,13 +204,14 @@ export const saveSdkLog = async (req, res) => {
         user_id,
         user_name,
         user_email,
-        application_id
+        application_id,
+        trace_id
       FROM request_logs
       ORDER BY id DESC
       LIMIT 1
     `);
 
-    console.log("LAST INSERT:");
+    console.log("LAST INSERT");
     console.table(lastRow);
 
     return res.json({
